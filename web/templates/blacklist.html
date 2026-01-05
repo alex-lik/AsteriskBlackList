@@ -18,7 +18,14 @@
 
             <td><input type="submit" value="Добавить"></td>
         </form>
-    </tr>     
+    </tr>
+    {% if message %}
+    <tr>
+        <td colspan="3" style="color: {% if 'добавлен' in message %}green{% else %}red{% endif %}; text-align: center;">
+            {{ message }}
+        </td>
+    </tr>
+    {% endif %}
     <tr>
         <td colspan="5"><hr></td>
 
