@@ -1,0 +1,24 @@
+{% extends 'header.html' %}
+
+{% block content %}
+<TABLE >
+    <caption>Состояние модемов</caption>
+    <tr >
+<td>ID</td>
+<td>Состояние модема</td>
+<td>Уровень GSM сигнала</td>
+<td>Сотовый оператор</td>
+<td>№ телефона</td>
+<td >№ телефона</td>
+</tr>
+
+<ul>
+    {% for trunk, state, signal, operator, modem, phone in data %}
+        <tr><td>{{trunk}}</td><td>{{state}}</td><td>{{signal}}</td><td>{{operator}}</td><td>{{modem}}</td><td>{{phone}}</td></tr>
+    {% endfor %}
+    </ul>
+
+
+
+
+{% endblock %}

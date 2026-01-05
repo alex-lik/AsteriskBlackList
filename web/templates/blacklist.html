@@ -1,0 +1,41 @@
+{% extends 'header.html' %}
+
+{% block content %}
+<link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/rules.css') }}">
+
+
+    <h1 align="center">Чёрный список</h1>
+    <table align="center" border="1" cellpadding="1" cellspacing="1" style="width:1080"> 
+        <th>Номер телефона</th>
+        <th>Причина добавления</th>
+        <th></th>
+
+        <tr>
+        <form enctype="multipart/form-data" method="post">
+            <td><input type="text" name="phone"  ></td>
+            <td><input type="text" name="comment"></td>
+
+            <td><input type="submit" value="Добавить"></td>
+        </form>
+    </tr>     
+    <tr>
+        <td colspan="5"><hr></td>
+
+        <form> 
+         
+        {% for row in black_list %}	
+            <tr>
+            <td><p><b>{{row.phone}}</b></p></td>
+            <td>{{row.comment}}</td>
+            <td><input type="button" value="Удалить" onClick='location.href="/delete/{{row.phone}}"'></td>
+
+        <form> 
+
+    {% endfor %}
+
+
+
+</html>
+
+{% endblock %}
