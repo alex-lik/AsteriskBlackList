@@ -1,36 +1,67 @@
 from os import system
-from sys import argv
+import subprocess
 import re
 
-def format_phone(phone):
-	""" Приведение номера телефона к формату 0ХХ-ХХХ-ХХ-ХХ и +380ХХ-ХХХ-ХХ-ХХ"""
-	phone = re.sub("\D", "", phone)
+def normalize_phone(phone):
+	"""
+	Нормализация номера телефона к формату +380XXXXXXXXX
+	Принимает: +380999999999, 380999999999, 80999999999, 0999999999, 999999999
+	Возвращает: +380999999999 или None если номер невалидный
+	"""
+	digits = re.sub(r'\D', '', phone)
 
-	if len(phone) == 9:									# Если длина номера 9 символов 				
-		phone = '0' + str(phone)						# Добавляем 0 к номеру
-		full_phone = '+380' + str(phone)				# Добавляем +380 к полному номеру	
-	elif len(phone) == 10 and phone[0] == '0': 			# Если длина номера 10 символов и первый символ 0
-		full_phone = '+38' + str(phone)					# Добавляем к полному номеру +38, а номер оставляем без изменений
-	elif len(phone) == 11 and phone[0] == '8': 			# Если длина номера 11 символов и первый символ 8
-		full_phone = '+3' + str(phone)					# Добавляем к полному номеру +3
-		phone = phone[1:]								# Удаляем первый символ в номере
-	elif len(phone) == 12 and phone[0] == '3': 			# Если длина номера 12 символов и первый символ 3
-		full_phone = '+' + str(phone)					# Добавляем к полному номеру +
-		phone = phone[2:]								# Удаляем первые 2 символа в номере
-	elif len(phone) == 13 and phone[0] == '+':			# Если длина номера 13 символов и первый символ +
-		full_phone = phone								# Полный номер не меняем
-		phone = phone[3:]								# Удаляем первые 3 символа в номере
-	else: 												# Если как то по другому
-		return None										# Ничего не возвращаем
-	return full_phone, phone							# Возвращаем полный номер и номер телефона
+	if len(digits) == 9:
+		return '+380' + digits
+	elif len(digits) == 10 and digits.startswith('0'):
+		return '+38' + digits
+	elif len(digits) == 11 and digits.startswith('80'):
+		return '+3' + digits
+	elif len(digits) == 12 and digits.startswith('380'):
+		return '+' + digits
+	else:
+		return None
+
+
+def phone_exists(phone):
+	"""Проверка существования номера в blacklist Asterisk"""
+	normalized = normalize_phone(phone) if not phone.startswith('+380') else phone
+	if not normalized:
+		return False
+	result = subprocess.run(
+		['asterisk', '-rx', f'database show blacklist'],
+		capture_output=True, text=True
+	)
+	return normalized in result.stdout
+
+
+def format_phone(phone):
+	"""
+	Приведение номера к формату +380XXXXXXXXX
+	Для совместимости возвращает кортеж (full_phone, short_phone)
+	"""
+	normalized = normalize_phone(phone)
+	if not normalized:
+		return None
+	short_phone = '0' + normalized[4:]  # +380XXXXXXXXX -> 0XXXXXXXXX
+	return normalized, short_phone
 
 
 def add(phone, comment):
-	""" Добавление номера в черный список """
+	"""
+	Добавление номера в черный список
+	Возвращает: (success: bool, message: str)
+	"""
+	normalized = normalize_phone(phone) if not phone.startswith('+380') else phone
+	if not normalized:
+		return False, "Неверный формат номера"
+
+	if phone_exists(normalized):
+		return False, f"Номер {normalized} уже в черном списке"
+
 	comment = comment.replace(' ', '_')
-	system(f"""asterisk -rx "database put blacklist {phone} '{comment}'" """)	# Выполняем команду занесения в черный список
-	print(f"""Blocked number: {phone}. Reason for blocking:{comment}""")		# Выводим сообщение на экран
-	return True
+	system(f"""asterisk -rx "database put blacklist {normalized} '{comment}'" """)
+	print(f"""Blocked number: {normalized}. Reason for blocking:{comment}""")
+	return True, f"Номер {normalized} добавлен в черный список"
 
 def show_blacklist():
 	command = f"""asterisk -rx "database show"|grep black"""
@@ -38,7 +69,10 @@ def show_blacklist():
 
 
 def del_in_black_list(phone):
-	""" Удаление номерa из черного списка """
-	system(f"""asterisk -rx "database del blacklist {phone}" """)	# Выполняем команду удаления из черного списка
-	print(f"""Number {phone} removed from the black list""")		# Выводим сообщение на экран
+	""" Удаление номера из черного списка """
+	normalized = normalize_phone(phone) if not phone.startswith('+380') else phone
+	if not normalized:
+		return False
+	system(f"""asterisk -rx "database del blacklist {normalized}" """)
+	print(f"""Number {normalized} removed from the black list""")
 	return True

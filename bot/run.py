@@ -81,21 +81,20 @@ def get_number(message):
 	bot.register_next_step_handler(sent, get_description, phone) 
 
 def get_description(message, phone):
-	if message.text == "Главное меню": 
+	if message.text == "Главное меню":
 		main_menu(message)
 		return
 
 	description = message.text
-	phones = blacklist.format_phone(phone)
-	try:
-		for phone in phones:
-			blacklist.add(phone, description)
-		msg = f'Номера {phones[0]} и {phones[1]} заблокированы по причине: {description}'
-		bot.send_message(message.chat.id, msg, reply_markup=kb.main_menu()) 
-	except:
-		msg = f'Номера {phones[0]} и {phones[1]} не заблокированы, при блокировке произошла ошибка'
+	normalized = blacklist.normalize_phone(phone)
 
-		bot.send_message(message.chat.id, msg, reply_markup=kb.main_menu()) 
+	if not normalized:
+		msg = f'Неверный формат номера: {phone}'
+		bot.send_message(message.chat.id, msg, reply_markup=kb.main_menu())
+		return
+
+	success, msg = blacklist.add(normalized, description)
+	bot.send_message(message.chat.id, msg, reply_markup=kb.main_menu()) 
 
 
 ################ Удаление
@@ -106,20 +105,25 @@ def unblock_step1(message):
 	bot.register_next_step_handler(sent, unblock) 
 
 def unblock(message):
-	if message.text == "Главное меню": 
+	if message.text == "Главное меню":
 		main_menu(message)
 		return
+
 	phone = message.text
-	phones = blacklist.format_phone(phone)
+	normalized = blacklist.normalize_phone(phone)
+
+	if not normalized:
+		msg = f'Неверный формат номера: {phone}'
+		bot.send_message(message.chat.id, msg, reply_markup=kb.main_menu())
+		return
+
 	try:
-		for phone in phones:
-			blacklist.del_in_black_list(phone)
-		msg = f'Номера {phones[0]} и {phones[1]} удалены из черного списка'
-		bot.send_message(message.chat.id, msg, reply_markup=kb.main_menu()) 
+		blacklist.del_in_black_list(normalized)
+		msg = f'Номер {normalized} удалён из черного списка'
+		bot.send_message(message.chat.id, msg, reply_markup=kb.main_menu())
 	except Exception as er:
 		print(er)
-		msg = f'Номера {phones[0]} и {phones[1]} не удалены, при удалении произошла ошибка'
-
+		msg = f'Номер {normalized} не удалён, произошла ошибка'
 		bot.send_message(message.chat.id, msg, reply_markup=kb.main_menu()) 
 
 @bot.message_handler()	
