@@ -1,0 +1,15 @@
+[Unit]
+Description=Telegram bot to manage blacklist
+After=syslog.target
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/jetnew/development/black_list/bot
+ExecStart=/home/jetnew/development/black_list/bot/env/bin/python run.py
+RestartSec=5
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

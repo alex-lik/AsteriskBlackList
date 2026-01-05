@@ -1,0 +1,17 @@
+[Unit]
+Description=Blacklist web service
+After=network.target
+
+[Service]
+User=taxi
+WorkingDirectory=/home/taxi/black_list/web
+Environment="PATH=/home/taxi/black_list/web/env/bin"
+ExecStart=/home/taxi/black_list/web/env/bin/python run.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+
+
+
