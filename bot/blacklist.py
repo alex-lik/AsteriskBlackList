@@ -1,78 +1,82 @@
-from os import system
+"""Operations on the Asterisk blacklist database."""
+
+import logging
+import os
 import subprocess
-import re
+import sys
+from typing import Optional, Tuple
 
-def normalize_phone(phone):
-	"""
-	Нормализация номера телефона к формату +380XXXXXXXXX
-	Принимает: +380999999999, 380999999999, 80999999999, 0999999999, 999999999
-	Возвращает: +380999999999 или None если номер невалидный
-	"""
-	digits = re.sub(r'\D', '', phone)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-	if len(digits) == 9:
-		return '+380' + digits
-	elif len(digits) == 10 and digits.startswith('0'):
-		return '+38' + digits
-	elif len(digits) == 11 and digits.startswith('80'):
-		return '+3' + digits
-	elif len(digits) == 12 and digits.startswith('380'):
-		return '+' + digits
-	else:
-		return None
+from common.phone import normalize_phone
+
+__all__ = ["normalize_phone", "phone_exists", "add", "remove", "show_blacklist"]
+
+ASTERISK_BIN = os.getenv("ASTERISK_BIN", "asterisk")
+
+logger = logging.getLogger(__name__)
 
 
-def phone_exists(phone):
-	"""Проверка существования номера в blacklist Asterisk"""
-	normalized = normalize_phone(phone) if not phone.startswith('+380') else phone
-	if not normalized:
-		return False
-	result = subprocess.run(
-		['asterisk', '-rx', f'database show blacklist'],
-		capture_output=True, text=True
-	)
-	return normalized in result.stdout
+def _run_asterisk(arguments: str) -> subprocess.CompletedProcess:
+    """Run an Asterisk CLI command without a shell."""
+    return subprocess.run(
+        [ASTERISK_BIN, "-rx", arguments],
+        capture_output=True,
+        text=True,
+    )
 
 
-def format_phone(phone):
-	"""
-	Приведение номера к формату +380XXXXXXXXX
-	Для совместимости возвращает кортеж (full_phone, short_phone)
-	"""
-	normalized = normalize_phone(phone)
-	if not normalized:
-		return None
-	short_phone = '0' + normalized[4:]  # +380XXXXXXXXX -> 0XXXXXXXXX
-	return normalized, short_phone
+def phone_exists(phone: str) -> bool:
+    """Check whether a number is already in the Asterisk blacklist."""
+    normalized = normalize_phone(phone)
+    if not normalized:
+        return False
+    result = _run_asterisk("database show blacklist")
+    if result.returncode != 0:
+        logger.error("Asterisk lookup failed: %s", result.stderr.strip())
+        return False
+    return normalized in result.stdout
 
 
-def add(phone, comment):
-	"""
-	Добавление номера в черный список
-	Возвращает: (success: bool, message: str)
-	"""
-	normalized = normalize_phone(phone) if not phone.startswith('+380') else phone
-	if not normalized:
-		return False, "Неверный формат номера"
+def add(phone: str, comment: str) -> Tuple[bool, str]:
+    """Add a number to the blacklist.
 
-	if phone_exists(normalized):
-		return False, f"Номер {normalized} уже в черном списке"
+    Returns (success, message).
+    """
+    normalized = normalize_phone(phone)
+    if not normalized:
+        return False, "Неверный формат номера"
 
-	comment = comment.replace(' ', '_')
-	system(f"""asterisk -rx "database put blacklist {normalized} '{comment}'" """)
-	print(f"""Blocked number: {normalized}. Reason for blocking:{comment}""")
-	return True, f"Номер {normalized} добавлен в черный список"
+    if phone_exists(normalized):
+        return False, f"Номер {normalized} уже в черном списке"
 
-def show_blacklist():
-	command = f"""asterisk -rx "database show"|grep black"""
-	system(command)
+    value = (comment or "").strip().replace(" ", "_").replace('"', "")
+    result = _run_asterisk(f'database put blacklist {normalized} "{value}"')
+    if result.returncode != 0:
+        logger.error("Asterisk insert failed: %s", result.stderr.strip())
+        return False, f"Номер {normalized} не добавлен, произошла ошибка"
+
+    logger.info("Blocked number: %s. Reason: %s", normalized, value)
+    return True, f"Номер {normalized} добавлен в черный список"
 
 
-def del_in_black_list(phone):
-	""" Удаление номера из черного списка """
-	normalized = normalize_phone(phone) if not phone.startswith('+380') else phone
-	if not normalized:
-		return False
-	system(f"""asterisk -rx "database del blacklist {normalized}" """)
-	print(f"""Number {normalized} removed from the black list""")
-	return True
+def remove(phone: str) -> bool:
+    """Remove a number from the blacklist. Returns True on success."""
+    normalized = normalize_phone(phone)
+    if not normalized:
+        return False
+    result = _run_asterisk(f"database del blacklist {normalized}")
+    if result.returncode != 0:
+        logger.error("Asterisk delete failed: %s", result.stderr.strip())
+        return False
+    logger.info("Number %s removed from the black list", normalized)
+    return True
+
+
+def show_blacklist() -> Optional[str]:
+    """Return the raw Asterisk blacklist dump, or None on error."""
+    result = _run_asterisk("database show blacklist")
+    if result.returncode != 0:
+        logger.error("Asterisk lookup failed: %s", result.stderr.strip())
+        return None
+    return result.stdout

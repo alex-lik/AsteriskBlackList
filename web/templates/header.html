@@ -1,24 +1,15 @@
 <!DOCTYPE html>
-<html>
-
-<link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+<html lang="ru">
 <head>
+    <meta charset="utf-8">
     <title>Черный список телефонии</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 </head>
-<ul class="menu-main" id="menu">
-    <!-- <li><a href="/">Главная</a></li> -->
-    <!-- <li><a href="/base_settings">Общие настройки</a></li> -->
-    <!-- <li><a href="/incoming_sms">Входящие смс</a></li> -->
-    <!-- <li><a href="/balance">Балансы SIM</a></a></li> -->
-    <!-- <li><a href="/blacklist">Чёрный список</a></a></li> -->
-
-
-    
-
-</ul>
 <body>
+    <ul class="menu-main">
+        <li><a href="/blacklist" class="current">Чёрный список</a></li>
+    </ul>
     {% block content %}
     {% endblock %}
 </body>
-
 </html>

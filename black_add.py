@@ -1,21 +1,24 @@
-from sys import argv
+"""Add a phone number to the Asterisk blacklist."""
+
+import argparse
+import os
 import sys
-sys.path.insert(0, 'bot')
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "bot"))
+
 import blacklist
 
 
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Добавить номер в черный список")
+    parser.add_argument("phone", help="Номер телефона")
+    parser.add_argument("comment", help="Причина блокировки")
+    args = parser.parse_args()
+
+    success, message = blacklist.add(args.phone, args.comment)
+    print(message)
+    return 0 if success else 1
+
+
 if __name__ == "__main__":
-	if len(argv) < 3:
-		print("Использование: python black_add.py <телефон> <комментарий>")
-		sys.exit(1)
-
-	phone = argv[1]
-	comment = argv[2]
-
-	normalized = blacklist.normalize_phone(phone)
-	if not normalized:
-		print(f"Неверный формат номера: {phone}")
-		sys.exit(1)
-
-	success, message = blacklist.add(normalized, comment)
-	print(message)
+    sys.exit(main())

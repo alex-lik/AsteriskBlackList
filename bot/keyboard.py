@@ -1,21 +1,16 @@
-from keyboa import Keyboa  # pip install keyboa
-from telebot import types															# Telegram API
+"""Reply keyboards for the blacklist Telegram bot."""
 
-def main_menu():
-    kb = types.ReplyKeyboardMarkup(True, True)
-    kb.row("Добавить номер")
-    kb.row("Удалить номер")
-    return kb
+from telebot import types
 
 
-def return_to_main():
-    kb = types.ReplyKeyboardMarkup(True, True)
-    kb.row("Главное меню")
-    return kb
+def main_menu() -> types.ReplyKeyboardMarkup:
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.row("Добавить номер")
+    keyboard.row("Удалить номер")
+    return keyboard
 
-def new_user_need_register_kb():
-    items = []
-    items.append({'Зарегистрировать':"confirm_registration"})
-    items.append({"Блокировать":"refuse_registration"})
-    return Keyboa(items=items, items_in_row=2).keyboard
 
+def return_to_main() -> types.ReplyKeyboardMarkup:
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.row("Главное меню")
+    return keyboard

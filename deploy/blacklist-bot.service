@@ -1,0 +1,15 @@
+[Unit]
+Description=Asterisk blacklist Telegram bot
+After=network.target
+
+[Service]
+Type=simple
+User=asterisk
+WorkingDirectory=/opt/asterisk-blacklist/bot
+EnvironmentFile=/opt/asterisk-blacklist/.env
+ExecStart=/opt/asterisk-blacklist/bot/env/bin/python run.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=Asterisk blacklist web interface
+After=network.target
+
+[Service]
+Type=simple
+User=asterisk
+WorkingDirectory=/opt/asterisk-blacklist/web
+EnvironmentFile=/opt/asterisk-blacklist/.env
+ExecStart=/opt/asterisk-blacklist/web/env/bin/python run.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

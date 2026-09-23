@@ -1,7 +1,5 @@
 input {
     width: 100%;
- 
-    /* width: 80px; */
 }
 
   th {
@@ -37,29 +35,25 @@ table {
 
 
   h3 {
-    align: "right";
-    color : "Gray";
+    text-align: right;
+    color: gray;
   }
 
-
-
-
-
-  /* ------------ */
   .three {
     width: 95%;
     text-align: center;
-  } 
+  }
 
+  .flash-success {
+    color: green;
+    text-align: center;
+  }
 
+  .flash-error {
+    color: red;
+    text-align: center;
+  }
 
-
-
-
-
-
-
-  @import url('https://fonts.googleapis.com/css?family=Ubuntu+Condensed');
 .menu-main {
   list-style: none;
   margin: 40px 0 5px;
@@ -102,16 +96,13 @@ table {
   transition: .8s;
 }
 .menu-main a:hover:before, .menu-main .current:before {left: 0;}
-.menu-main a:hover:after, .menu-main .current:after {right: 0;}   
+.menu-main a:hover:after, .menu-main .current:after {right: 0;}
 @media (max-width: 550px) {
 .menu-main {padding-top: 0;}
 .menu-main li {display: block;}
 .menu-main li:after {content: none;}
 .menu-main a {
-  padding: 25px 0 20px; 
+  padding: 25px 0 20px;
   margin: 0 30px;
 }
 }
-
-
-
