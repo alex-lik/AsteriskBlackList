@@ -1,132 +1,58 @@
-# import pymysql
-# class DB:
-# 	host = '127.0.0.1'			# IP хоста с базой
-# 	user = 'taxi'				# Логин к базе
-# 	password = 'YOUR_MYSQL_PASSWORD'      # Пароль к базе
-# 	database = 'asterisk'		# База
-	
-# def mysql_conect():					# Функция подключения к базе
-# 	connection = pymysql.connect(host=DB.host, user=DB.user, password=DB.password, db=DB.database)
-# 	cursor = connection.cursor()	# Подключение
-# 	return connection, cursor				# Возвращаем подключение
+"""MySQL storage for the blacklist web interface."""
 
+import os
+import sys
+from typing import List, Optional, Tuple
 
-# def mysql_select(sql):				# Функция выполнения SELECT запросов 
-# 	try:
-# 		connection, cursor = mysql_conect()		# Подключение
-# 		cursor.execute(sql)				# Выполняем запрос
-# 		results = cursor.fetchall()		# Получаем результат 
-# 		connection.close()				# Закрываем соединение
-# 	finally:
-# 		return results					# Возвращаем результат
-
-
-# def mysql_update(sql):
-# 	try:
-# 		connection, cursor = mysql_conect()		# Подключение
-# 		cursor.execute(sql)
-# 		connection.commit()
-# 	finally:
-# 		connection.close()
-		
-
-# def get_blacklist():
-# 	sql = "select phone, description from blacklist"
-# 	result = mysql_select(sql)
-# 	data = []
-# 	if len(result) > 0:
-# 		for phone, description in result: data.append({'phone':phone, 'comment':description})
-# 	return data
-
-# def add_phone(phone, description):
-# 	sql = f"""insert into blacklist (phone, description) values ("{phone}", "{description}")"""
-# 	mysql_update(sql)
-		
-
-# def del_phone(phone):
-# 	sql = f"""delete from blacklist where phone = "{phone}" """
-# 	mysql_update(sql)
 import pymysql
-import re
 
-def normalize_phone(phone):
-    """
-    Нормализация номера телефона к формату +380XXXXXXXXX
-    Принимает: +380999999999, 380999999999, 80999999999, 0999999999, 999999999
-    Возвращает: +380999999999 или None если номер невалидный
-    """
-    # Убираем все кроме цифр
-    digits = re.sub(r'\D', '', phone)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-    if len(digits) == 9:
-        # 999999999 -> +380999999999
-        return '+380' + digits
-    elif len(digits) == 10 and digits.startswith('0'):
-        # 0999999999 -> +380999999999
-        return '+38' + digits
-    elif len(digits) == 11 and digits.startswith('80'):
-        # 80999999999 -> +380999999999
-        return '+3' + digits
-    elif len(digits) == 12 and digits.startswith('380'):
-        # 380999999999 -> +380999999999
-        return '+' + digits
-    elif len(digits) == 12 and digits.startswith('380'):
-        return '+' + digits
-    else:
-        return None
+from common.phone import normalize_phone
 
 
-class DB:
-    host = '127.0.0.1'      # IP хоста с базой
-    user = 'taxi'           # Логин к базе
-    password = 'YOUR_MYSQL_PASSWORD'  # Пароль к базе
-    database = 'asterisk'   # База данных
+def _db_config() -> dict:
+    return {
+        "host": os.getenv("MYSQL_HOST", "127.0.0.1"),
+        "port": int(os.getenv("MYSQL_PORT", "3306")),
+        "user": os.getenv("MYSQL_USER", ""),
+        "password": os.getenv("MYSQL_PASSWORD", ""),
+        "db": os.getenv("MYSQL_DB", "asterisk"),
+        "charset": "utf8mb4",
+    }
 
-def mysql_connect():
-    connection = pymysql.connect(host=DB.host, user=DB.user, password=DB.password, db=DB.database)
-    cursor = connection.cursor()    # Подключение
-    return connection, cursor
 
-def mysql_select(sql):
-    try:
-        connection, cursor = mysql_connect()    # Подключение
-        cursor.execute(sql)    # Выполняем запрос
-        results = cursor.fetchall()    # Получаем результат
-    finally:
-        connection.close()    # Закрываем соединение
-        return results    # Возвращаем результат
+def _connect():
+    return pymysql.connect(**_db_config())
 
-def mysql_update(sql):
-    try:
-        connection, cursor = mysql_connect()    # Подключение
-        cursor.execute(sql)
-        connection.commit()
-    finally:
-        connection.close()
 
-def get_blacklist():
-    sql = "SELECT phone, description FROM blacklist"
-    result = mysql_select(sql)
-    data = []
-    if len(result) > 0:
-        for phone, description in result:
-            data.append({'phone':phone, 'comment':description})
-    return data
+def get_blacklist() -> List[dict]:
+    with _connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT phone, description FROM blacklist")
+            return [
+                {"phone": phone, "comment": description}
+                for phone, description in cursor.fetchall()
+            ]
 
-def phone_exists(phone):
-    """Проверка существования номера в базе"""
+
+def phone_exists(phone: str) -> bool:
     normalized = normalize_phone(phone)
     if not normalized:
         return False
-    sql = f'SELECT COUNT(*) FROM blacklist WHERE phone = "{normalized}"'
-    result = mysql_select(sql)
-    return result[0][0] > 0 if result else False
+    with _connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT COUNT(*) FROM blacklist WHERE phone = %s", (normalized,)
+            )
+            row = cursor.fetchone()
+            return row is not None and row[0] > 0
 
 
-def add_phone(phone, description):
-    """
-    Добавление номера в черный список
-    Возвращает: (success: bool, message: str, normalized_phone: str|None)
+def add_phone(phone: str, description: str) -> Tuple[bool, str, Optional[str]]:
+    """Add a number to the blacklist.
+
+    Returns (success, message, normalized_phone).
     """
     normalized = normalize_phone(phone)
     if not normalized:
@@ -135,11 +61,19 @@ def add_phone(phone, description):
     if phone_exists(normalized):
         return False, f"Номер {normalized} уже в черном списке", normalized
 
-    sql = f'INSERT INTO blacklist (phone, description) VALUES ("{normalized}", "{description}")'
-    mysql_update(sql)
+    with _connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO blacklist (phone, description) VALUES (%s, %s)",
+                (normalized, description),
+            )
+        connection.commit()
     return True, f"Номер {normalized} добавлен в черный список", normalized
 
 
-def del_phone(phone):
-    sql = f'DELETE FROM blacklist WHERE phone = "{phone}"'
-    mysql_update(sql)
+def del_phone(phone: str) -> None:
+    normalized = normalize_phone(phone) or phone
+    with _connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM blacklist WHERE phone = %s", (normalized,))
+        connection.commit()

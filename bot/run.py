@@ -1,135 +1,124 @@
-from email import message
-import telebot 			# Telegram API |pip install pyTelegramBotAPI
-from telebot import types	
-import keyboard as kb
-bot = telebot.TeleBot('YOUR_TELEGRAM_BOT_TOKEN')
-import db
+"""Telegram bot for managing the Asterisk blacklist."""
+
+import os
+import sys
+
+import telebot
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import blacklist
-admin_id = YOUR_ADMIN_ID
-# admin_id = YOUR_ADMIN_ID
+import keyboard as kb
+
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+if not TOKEN:
+    raise RuntimeError("TELEGRAM_BOT_TOKEN environment variable is not set")
+
+ADMIN_IDS = {
+    admin_id.strip()
+    for admin_id in os.getenv("ADMIN_IDS", "").split(",")
+    if admin_id.strip()
+}
+
+bot = telebot.TeleBot(TOKEN)
 
 
+def is_allowed(user_id) -> bool:
+    """Return True if the user may manage the blacklist."""
+    if not ADMIN_IDS:
+        return True
+    return str(user_id) in ADMIN_IDS
 
 
-# @bot.message_handler(func=lambda message: str(message.chat.id) not in db.get_users())	# Если пользователя нет в списке
-# def auth(message):
-# 	"""Авторизация, будет отсеивать всех , кого нет в списке пользователей"""
-
-# 	bot.send_message(message.chat.id, "Вы не зарегестрированы, без регистрации использование сервиса невозможно") # Отправляем ему сообщение
-# 	msg = f"""Новый пользователь хочет зарегистрироваться
-# user_id ::: {message.chat.id} 
-# first_name ::: {message.from_user.first_name}
-# username ::: {message.from_user.username}
-# last_name ::: {message.from_user.last_name}
-# Сообщение ::: {message.text}"""
-# 	bot.send_message(admin_id, msg, reply_markup=kb.new_user_need_register_kb()) #, reply_markup = keyboard.register_key(message.from_user.id))
+def deny_access(message) -> None:
+    bot.send_message(message.chat.id, "Нет доступа.", reply_markup=kb.main_menu())
 
 
-# @bot.callback_query_handler(func=lambda call:  call.data == 'refuse_registration')
-# def refuse_registration(call):
-# 	for line in call.message.text.splitlines():
-# 		if 'username' in line : username = line.split(':::')[1].strip()
-# 		elif 'first_name' in line : first_name = line.split(':::')[1].strip()
-# 		# elif 'user_id' in line : user_id = line.split(':::')[1].strip()
-# 		# elif 'last_name' in line : last_name = line.split(':::')[1].strip()
-# 		# elif 'Сообщение' in line : Сообщение = line.split(':::')[1].strip()
-# 	if username and username != 'None': user = username
-# 	elif first_name and first_name != 'None': user = first_name
-
-# 	msg = f"""Пользователю {user} отказано в регистрации """
-# 	bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=msg, reply_markup=None)
-
-
-
-
-# @bot.callback_query_handler(func=lambda call:  call.data == 'confirm_registration')
-# def confirm_registration(call):
-
-# 	for line in call.message.text.splitlines():
-# 		if 'user_id' in line : 
-# 			user_id = line.split(':::')[1].strip()
-	
-# 	if db.check_user_exist(user_id):
-# 		bot.send_message(admin_id, text=f"Пользователь {user_id} уже зарегестрирован")
-# 	else:
-# 		db.add_users(user_id)
-# 		bot.send_message(admin_id, text=f'Пользователь  {user_id} успешно зарегестрирован')
-
-########################################################################################################################################################################################################################################################
-@bot.callback_query_handler(func=lambda message:  message.text == 'Главное меню')
+@bot.message_handler(func=lambda message: message.text == "Главное меню")
 def main_menu(message):
-	msg = 'Что делать?'
-	bot.send_message(message.chat.id, msg, reply_markup=kb.main_menu())
+    bot.send_message(message.chat.id, "Что делать?", reply_markup=kb.main_menu())
 
 
-################### Добавление
-
-@bot.message_handler(func=lambda message:  message.text == 'Добавить номер')
+@bot.message_handler(func=lambda message: message.text == "Добавить номер")
 def block_step1(message):
-	msg = 'Отправьте номер телефона'
-	sent = bot.send_message(message.chat.id, msg, reply_markup=kb.return_to_main()) 
-	bot.register_next_step_handler(sent, get_number) 
+    if not is_allowed(message.from_user.id):
+        deny_access(message)
+        return
+    sent = bot.send_message(
+        message.chat.id, "Отправьте номер телефона", reply_markup=kb.return_to_main()
+    )
+    bot.register_next_step_handler(sent, get_number)
+
 
 def get_number(message):
-	if message.text == "Главное меню": 
-		main_menu(message)
-		return
+    if message.text == "Главное меню":
+        main_menu(message)
+        return
 
-	phone = message.text
-	msg = 'Укажите причину блокировки'
-	sent = bot.send_message(message.chat.id, msg, reply_markup=kb.return_to_main()) 
-	bot.register_next_step_handler(sent, get_description, phone) 
+    phone = message.text
+    sent = bot.send_message(
+        message.chat.id, "Укажите причину блокировки", reply_markup=kb.return_to_main()
+    )
+    bot.register_next_step_handler(sent, get_description, phone)
+
 
 def get_description(message, phone):
-	if message.text == "Главное меню":
-		main_menu(message)
-		return
+    if message.text == "Главное меню":
+        main_menu(message)
+        return
 
-	description = message.text
-	normalized = blacklist.normalize_phone(phone)
+    normalized = blacklist.normalize_phone(phone)
+    if not normalized:
+        bot.send_message(
+            message.chat.id,
+            f"Неверный формат номера: {phone}",
+            reply_markup=kb.main_menu(),
+        )
+        return
 
-	if not normalized:
-		msg = f'Неверный формат номера: {phone}'
-		bot.send_message(message.chat.id, msg, reply_markup=kb.main_menu())
-		return
-
-	success, msg = blacklist.add(normalized, description)
-	bot.send_message(message.chat.id, msg, reply_markup=kb.main_menu()) 
+    success, msg = blacklist.add(normalized, message.text)
+    bot.send_message(message.chat.id, msg, reply_markup=kb.main_menu())
 
 
-################ Удаление
-@bot.message_handler(func=lambda message:  message.text == 'Удалить номер')
+@bot.message_handler(func=lambda message: message.text == "Удалить номер")
 def unblock_step1(message):
-	msg = 'Отправьте номер телефона'
-	sent = bot.send_message(message.chat.id, msg, reply_markup=kb.return_to_main()) 
-	bot.register_next_step_handler(sent, unblock) 
+    if not is_allowed(message.from_user.id):
+        deny_access(message)
+        return
+    sent = bot.send_message(
+        message.chat.id, "Отправьте номер телефона", reply_markup=kb.return_to_main()
+    )
+    bot.register_next_step_handler(sent, unblock)
+
 
 def unblock(message):
-	if message.text == "Главное меню":
-		main_menu(message)
-		return
+    if message.text == "Главное меню":
+        main_menu(message)
+        return
 
-	phone = message.text
-	normalized = blacklist.normalize_phone(phone)
+    normalized = blacklist.normalize_phone(message.text)
+    if not normalized:
+        bot.send_message(
+            message.chat.id,
+            f"Неверный формат номера: {message.text}",
+            reply_markup=kb.main_menu(),
+        )
+        return
 
-	if not normalized:
-		msg = f'Неверный формат номера: {phone}'
-		bot.send_message(message.chat.id, msg, reply_markup=kb.main_menu())
-		return
+    if blacklist.remove(normalized):
+        msg = f"Номер {normalized} удалён из черного списка"
+    else:
+        msg = f"Номер {normalized} не удалён, произошла ошибка"
+    bot.send_message(message.chat.id, msg, reply_markup=kb.main_menu())
 
-	try:
-		blacklist.del_in_black_list(normalized)
-		msg = f'Номер {normalized} удалён из черного списка'
-		bot.send_message(message.chat.id, msg, reply_markup=kb.main_menu())
-	except Exception as er:
-		print(er)
-		msg = f'Номер {normalized} не удалён, произошла ошибка'
-		bot.send_message(message.chat.id, msg, reply_markup=kb.main_menu()) 
 
-@bot.message_handler()	
+@bot.message_handler()
 def main(message):
-	msg = 'Что делать?'
-	bot.send_message(message.chat.id, msg, reply_markup=kb.main_menu())
-########################################################################################################################################################################################################################################################
+    if not is_allowed(message.from_user.id):
+        deny_access(message)
+        return
+    bot.send_message(message.chat.id, "Что делать?", reply_markup=kb.main_menu())
 
-bot.polling()
+
+if __name__ == "__main__":
+    bot.infinity_polling()
