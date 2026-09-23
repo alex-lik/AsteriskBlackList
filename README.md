@@ -1,40 +1,41 @@
+**English** | [Русский](README.ru.md) | [Українська](README.uk.md) | [Deutsch](README.de.md)
+
 # AsteriskBlackList
 
-Управление чёрным списком номеров для Asterisk PBX через Telegram-бота,
-веб-интерфейс и CLI-утилиты.
+Manage the Asterisk PBX blacklist via a Telegram bot, web interface and CLI tools.
 
-## Возможности
+## Features
 
-- Добавление, удаление и просмотр заблокированных номеров
-- Три интерфейса: Telegram-бот, Flask веб-приложение, консольные скрипты
-- Нормализация номеров к формату `+380XXXXXXXXX`
-- Проверка дубликатов перед добавлением
-- Параметризованные SQL-запросы, вызовы Asterisk без shell
+- Add, remove and list blocked numbers
+- Three interfaces: Telegram bot, Flask web app, console scripts
+- Phone normalization to the `+380XXXXXXXXX` format
+- Duplicate check before adding
+- Parameterized SQL queries, shell-free Asterisk calls
 
-## Структура проекта
+## Project layout
 
 ```text
-common/            общий код (нормализация номеров)
-bot/               Telegram-бот
-  run.py           точка входа, диалоги добавления/удаления
-  blacklist.py     операции с AstDB через `asterisk -rx`
-  keyboard.py      reply-клавиатуры
-web/               Flask веб-интерфейс
-  run.py           маршруты CRUD
-  db.py            операции с таблицей `blacklist` в MySQL
-  templates/       Jinja2-шаблоны
-  static/          стили
-black_add.py       CLI: добавить номер
-black_del.py       CLI: удалить номер
-black_show.py      CLI: показать список
-deploy/            systemd-юниты для деплоя
+common/            shared code (phone normalization)
+bot/               Telegram bot
+  run.py           entry point, add/remove dialogs
+  blacklist.py     AstDB operations via `asterisk -rx`
+  keyboard.py      reply keyboards
+web/               Flask web interface
+  run.py           CRUD routes
+  db.py            operations on the `blacklist` MySQL table
+  templates/       Jinja2 templates
+  static/          styles
+black_add.py       CLI: add a number
+black_del.py       CLI: remove a number
+black_show.py      CLI: show the list
+deploy/            systemd units for deployment
 ```
 
-## Требования
+## Requirements
 
 - Python 3.10+
-- Asterisk с доступом к `asterisk -rx`
-- MySQL с таблицей `blacklist` (для веб-интерфейса):
+- Asterisk with `asterisk -rx` access
+- MySQL with a `blacklist` table (for the web interface):
 
 ```sql
 CREATE TABLE blacklist (
@@ -47,53 +48,53 @@ CREATE TABLE blacklist (
 pip install -r requirements.txt
 ```
 
-## Настройка
+## Configuration
 
 ```bash
 cp .env.example .env
 ```
 
-| Переменная          | Назначение                              |
-| ------------------- | --------------------------------------- |
-| `TELEGRAM_BOT_TOKEN`| токен Telegram-бота                     |
-| `ADMIN_IDS`         | ID администраторов через запятую (пусто — доступ всем) |
-| `MYSQL_HOST/PORT/USER/PASSWORD/DB` | подключение к MySQL       |
-| `WEB_HOST/PORT/DEBUG` | параметры Flask-приложения            |
-| `ASTERISK_BIN`      | путь к бинарю `asterisk`                |
+| Variable          | Purpose                                              |
+| ----------------- | ---------------------------------------------------- |
+| `TELEGRAM_BOT_TOKEN`| Telegram bot token                                |
+| `ADMIN_IDS`         | Admin IDs, comma-separated (empty — everyone allowed) |
+| `MYSQL_HOST/PORT/USER/PASSWORD/DB` | MySQL connection               |
+| `WEB_HOST/PORT/DEBUG` | Flask app settings                              |
+| `ASTERISK_BIN`      | path to the `asterisk` binary                      |
 
-## Запуск
+## Run
 
 ```bash
-# Telegram-бот
+# Telegram bot
 python bot/run.py
 
-# Веб-интерфейс
+# Web interface
 python web/run.py
 
 # CLI
-python black_add.py <телефон> <комментарий>
-python black_del.py <телефон>
+python black_add.py <phone> <comment>
+python black_del.py <phone>
 python black_show.py
 ```
 
-## Как это работает
+## How it works
 
-Бот управляет списком через внутреннюю базу Asterisk (AstDB):
+The bot manages the list through the internal Asterisk database (AstDB):
 
 ```bash
-asterisk -rx 'database put blacklist <номер> "<причина>"'
-asterisk -rx 'database del blacklist <номер>'
+asterisk -rx 'database put blacklist <number> "<reason>"'
+asterisk -rx 'database del blacklist <number>'
 asterisk -rx 'database show blacklist'
 ```
 
-Веб-интерфейс хранит те же номера в MySQL-таблице `blacklist`.
-Входящие форматы (`0999999999`, `80999999999`, `380999999999`, …)
-приводятся к `+380XXXXXXXXX` функцией `common.phone.normalize_phone`.
+The web interface stores the same numbers in the MySQL `blacklist` table.
+Incoming formats (`0999999999`, `80999999999`, `380999999999`, …)
+are normalized to `+380XXXXXXXXX` by `common.phone.normalize_phone`.
 
-## Деплой
+## Deployment
 
-Готовые юниты лежат в `deploy/`. Перед включением поправьте пути,
-пользователя и положите `.env` рядом с кодом:
+Ready-to-use units live in `deploy/`. Before enabling them, adjust the paths,
+the user, and place `.env` next to the code:
 
 ```bash
 sudo cp deploy/blacklist-bot.service deploy/blacklist-web.service /etc/systemd/system/
